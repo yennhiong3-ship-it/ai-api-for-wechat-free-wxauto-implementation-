@@ -3,7 +3,7 @@
 An AI-powered WeChat automation framework based on wxauto4, supporting OpenAI-compatible APIs, OCR image recognition, configurable prompts, and multi-session message handling.
 
 > Windows-only WeChat automation solution with AI API integration.
-
+With a separator, the AI will use this separator to send multiple messages at a time, making it more anthropomorphic.
 ---
 
 ## Features
