@@ -1,114 +1,200 @@
-# WeChat Bot
+# WeChat AI Bot
 
-A WeChat robot based on wxauto4 (open source) with AI API integration and OCR support.
+An AI-powered WeChat automation framework based on wxauto4, supporting OpenAI-compatible APIs, OCR image recognition, configurable prompts, and multi-session message handling.
+
+> Windows-only WeChat automation solution with AI API integration.
+
+---
 
 ## Features
 
-- AI-powered chat replies via OpenAI-compatible API
-- OCR image recognition (EasyOCR)
-- Multi-message splitting for long replies
-- Group chat support with configurable blacklist
-- Customizable system prompt via prompt.txt
+* OpenAI-compatible API support
+* OCR image recognition via EasyOCR
+* Multi-message splitting for long replies
+* Group chat support with configurable blacklist
+* Configurable system prompt (`prompt.txt`)
+* Randomized polling interval
+* Session history management
+* Windows WeChat automation via wxauto4
+
+---
 
 ## Requirements
 
-- Windows 64-bit
-- Python 3.9 ~ 3.12
-- WeChat client (logged in)
+* Windows 10 / 11 (64-bit)
+* Python 3.9 ~ 3.12
+* Desktop WeChat client (logged in)
+
+---
 
 ## Quick Start
 
-### 1. Install Dependencies
+### 1. Clone Repository
 
-Double-click `install.bat`, or run manually:
+```bash
+git clone https://github.com/YOUR_USERNAME/wechat-ai-bot.git
+cd wechat-ai-bot
+```
+
+---
+
+### 2. Install Dependencies
+
+Run:
+
+```bat
+install.bat
+```
+
+Or manually:
 
 ```bat
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 ```
 
-> Note: PyTorch will be installed as CPU version (~200MB). EasyOCR downloads models on first run (~200MB).
+> EasyOCR and PyTorch CPU models will be downloaded automatically on first launch.
 
-### 2. Configure
+---
+
+### 3. Configure Environment Variables
 
 Create a `.env` file in the project root:
 
 ```env
 API_KEY=your_api_key_here
-API_BASE_URL=https://api.example.com
+API_BASE_URL=https://api.deepseek.com
 ```
 
-See `main.py` for all available environment variables.
+Example:
 
-### 3. Run
+```env
+API_KEY=sk-xxxxxxxx
+API_BASE_URL=https://api.openai.com/v1
+```
 
-Double-click `start.bat`, or run:
+---
+
+### 4. Run
+
+Run:
+
+```bat
+start.bat
+```
+
+Or manually:
 
 ```bat
 .venv\Scripts\python main.py
 ```
 
+---
+
 ## Project Structure
 
-| File | Description |
-|------|-------------|
-| `main.py` | Main program entry |
-| `requirements.txt` | Python dependencies |
-| `install.bat` | One-click dependency installer |
-| `start.bat` | One-click launcher |
-| `prompt.txt` | System prompt template |
-| `chat_cfg.json` | Chat configuration |
-| `blacklist.txt` | Blacklisted users (one per line) |
-| `.env` | API key and settings (git-ignored) |
+| File               | Description                      |
+| ------------------ | -------------------------------- |
+| `main.py`          | Main program entry               |
+| `requirements.txt` | Python dependencies              |
+| `install.bat`      | Dependency installer             |
+| `start.bat`        | Launcher                         |
+| `prompt.txt`       | System prompt                    |
+| `chat_cfg.json`    | Chat configuration               |
+| `blacklist.txt`    | Blacklisted users                |
+| `.env`             | API configuration (not included) |
 
-## Dependencies
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| openai | >=1.0.0 | AI API client |
-| python-dotenv | >=1.0.0 | Environment config |
-| wxauto4 | >=4.0.0 | WeChat automation (open source) |
-| easyocr | >=1.7.0 | OCR image recognition |
-| torch | >=2.0.0 | Deep learning (CPU) |
-| Pillow | >=10.0.0 | Image processing |
+---
 
 ## Configuration Reference
 
-Set these in `.env`:
+Environment variables:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `API_KEY` | (required) | API access key |
-| `API_BASE_URL` | `https://api.deepseek.com` | API endpoint |
-| `MAX_HISTORY_LENGTH` | `10` | Conversation history length |
-| `REPLY_TIMEOUT` | `120` | API response timeout (seconds) |
-| `DISABLE_GROUPS` | `true` | Disable group chat replies |
-| `POLL_MIN` | `1.5` | Min poll interval (seconds) |
-| `POLL_MAX` | `3.0` | Max poll interval (seconds) |
-| `IMG_DIR` | `./images` | Image cache directory |
+| Variable             | Default                    | Description               |
+| -------------------- | -------------------------- | ------------------------- |
+| `API_KEY`            | Required                   | API access key            |
+| `API_BASE_URL`       | `https://api.deepseek.com` | API endpoint              |
+| `MAX_HISTORY_LENGTH` | `10`                       | Conversation history size |
+| `REPLY_TIMEOUT`      | `120`                      | API timeout               |
+| `DISABLE_GROUPS`     | `true`                     | Disable group reply       |
+| `POLL_MIN`           | `1.5`                      | Min polling interval      |
+| `POLL_MAX`           | `3.0`                      | Max polling interval      |
+| `IMG_DIR`            | `./images`                 | OCR image cache           |
+
+---
 
 ## Troubleshooting
 
-**Installation fails with network error:**
+### Dependency Installation Failure
+
+Use Tsinghua mirror:
+
 ```bat
 .venv\Scripts\python -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
-**wxauto4 import fails:**
-- Ensure you are on Windows 64-bit
-- WeChat client must be installed and logged in
-- Python version must be 3.9 ~ 3.12
+---
 
-**PyTorch import fails:**
+### wxauto4 Import Failure
+
+* Ensure Windows 64-bit
+* Ensure WeChat desktop client is installed
+* Ensure WeChat is logged in
+* Ensure Python version is 3.9 ~ 3.12
+
+---
+
+### PyTorch Import Failure
+
 ```bat
 .venv\Scripts\python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 ```
 
+---
+
+## Security Notice
+
+Do NOT upload:
+
+* `.env`
+* API keys
+* session files
+* logs
+* personal chat history
+
+Recommended `.gitignore`:
+
+```gitignore
+.venv/
+__pycache__/
+*.pyc
+.env
+*.log
+images/
+```
+
+---
+
+## Disclaimer
+
+This project is intended for educational and research purposes only.
+
+Users are solely responsible for complying with applicable laws and platform Terms of Service. Automating WeChat may violate Tencent WeChat policies. Use at your own risk.
+
+---
+
 ## Credits
 
-- [wxauto](https://github.com/cluic/wxauto) - WeChat automation library (open source)
-- [EasyOCR](https://github.com/JaidedAI/EasyOCR) - OCR engine
+* wxauto
+  https://github.com/cluic/wxauto
+
+* EasyOCR
+  https://github.com/JaidedAI/EasyOCR
+
+---
 
 ## License
 
-For personal use only. Use of WeChat automation may violate WeChat Terms of Service. Use at your own risk.
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+
+See the `LICENSE` file for details.
