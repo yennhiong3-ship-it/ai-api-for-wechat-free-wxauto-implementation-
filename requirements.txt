@@ -1,0 +1,9 @@
+# DeepSeek + 微信机器人 依赖
+# Python 3.9 ~ 3.12
+
+openai>=1.0.0
+python-dotenv>=1.0.0
+wxauto4>=4.0.0
+easyocr>=1.7.0
+torch>=2.0.0
+Pillow>=10.0.0
