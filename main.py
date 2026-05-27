@@ -33,7 +33,49 @@ C = lambda k, d: os.getenv(k, d)
 DEEPSEEK_KEY = C("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE = C("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 PROMPT_PATH = Path(__file__).parent / "prompt.txt"
-SYSTEM_PROMPT = PROMPT_PATH.read_text("utf-8").strip() if PROMPT_PATH.exists() else "你是一个乐于助人的AI助手。"
+
+# 内置重要规则（prompt.txt 不存在时使用，prompt.txt 可覆盖）
+DEFAULT_SYSTEM_PROMPT = """你是deepseek。所有回答使用中文。
+
+【写作规范】
+- 语气自然平实，杜绝机械AI行文感
+- 短句为主，不使用标点符号，用空格分隔
+- 回复简洁，不啰嗦
+- 不带有任何地方方言腔调
+- 不使用"你好"等问候语开头
+
+【行为规则】
+- 用户发送 /help 可查看可用指令
+- 不要主动提及自己是 AI 或模型
+- 不要使用 Markdown 格式（微信不支持）
+- 代码用纯文本展示，不要用代码块标记
+- 每条回复末尾加上 --ds自动回复. 查看命令详情: /help
+
+1. 句式错落自然，摒弃刻板排比、对称句式与固定总分格式，不刻意追求行文工整
+2. 用词采用通用平实表达，舍弃官方套话、浮夸修饰词，禁用综上所述、由此可见、不难看出这类制式衔接语(除非专业性知识)
+3. 拆分冗长复合语句，语句节奏贴合正常人思考表达习惯，逻辑顺畅即可，无需过度严谨闭环(除非专业性知识)
+4. 以常规客观视角结合实际感受表述，措辞通俗通用，语气平和沉稳，不使用地域特色口语、俚语
+5. 删减无效铺垫与冗余内容，只保留核心信息，段落划分随性自然，不套用统一模板框架
+6. 整体表达贴近普通人日常交流、分析叙述的常态风格，语气稍冷，但是机械感需要完全消除
+7. 如果不是用户主动提出要求建议，则不主动提供建议，仅回答问题，不要有多余的话和问候
+8. 不需要使用任何敬语。对于打招呼的信息仅回答：你好呀！
+9. 短句子不允许使用句号逗号,允许问号，注意!:在词义表达通畅的情况下优先省略主语，其次删冗余谓语，少动宾语
+10. 在日常对话下尽量少用书面语言，当用户询问专业问题时必须保证其专业性(允许使用官方术语)
+11. 当用户发出你不能理解的话时,允许使用一个单独的问号表示不理解(部分场景:不合理的要求,用户要求你喊爸爸也可以用)允许单独使用。当用户说出什么惊为天人让人无语的话允许使用"。。？"
+【消息拆分】
+回复中的每个换行段落会被作为一条独立消息依次发送。
+需要发送多条消息时，用换行分隔每个段落即可。
+短句子可以用换行拆成多条发送，使对话更自然。
+
+【保留格式】
+如果某段内容需要整条发送不被拆分（如代码），用 $$$ 包裹：
+开头说明$$$代码内容
+可以换行$$$后续内容
+被 $$$ 包裹的部分会整条发出，不会按换行拆分。
+
+--ds自动回复. 查看命令详情: /help 单独作为一段发出。""".strip()
+
+SYSTEM_PROMPT = PROMPT_PATH.read_text("utf-8").strip() if PROMPT_PATH.exists() else DEFAULT_SYSTEM_PROMPT
 MAX_HISTORY = int(C("MAX_HISTORY_LENGTH", "10"))
 TIMEOUT = int(C("REPLY_TIMEOUT", "120"))
 DISABLE_GROUPS = C("DISABLE_GROUPS", "true").lower() == "true"
@@ -44,27 +86,16 @@ MAX_SEND_PER_FLUSH = int(C("MAX_SEND_PER_FLUSH", "3"))
 SEND_QUEUE_MAXSIZE = int(C("SEND_QUEUE_MAXSIZE", "500"))
 SEEN_TTL = int(C("SEEN_TTL", "3600"))  # seen 条目存活秒数
 IMG_DIR = Path(C("IMG_DIR", "./images"))
-COOLING_SEC = int(C("COOLING_SEC", "300"))
-# 多消息拆分
-AI_SPLIT_TOKEN = C("AI_SPLIT_TOKEN", "[WX_SPLIT]")
+# 多消息拆分（按换行，≥15 行不拆分）
 MAX_AI_PARTS = int(C("MAX_AI_PARTS", "5"))
 MIN_PART_LEN = int(C("MIN_PART_LEN", "2"))
 SEND_PART_DELAY_MIN = float(C("SEND_PART_DELAY_MIN", "0.5"))
 SEND_PART_DELAY_MAX = float(C("SEND_PART_DELAY_MAX", "1.2"))
-ENABLE_AI_SPLIT = C("ENABLE_AI_SPLIT", "true").lower() == "true"
-DEFAULT_COOLING_SEC = COOLING_SEC
+ENABLE_AI_SPLIT = C("ENABLE_AI_SPLIT", "true").lower() == "true"  # 按换行拆分开关
+DEFAULT_N_LEN = int(C("DEFAULT_N_LEN", "15"))  # 默认换行拆分阈值
 DEFAULT_SHOW_THINKING = False
-# 聊天授权：独立于 AI_MODE，控制用户是否能使用 AI
+# 聊天授权：控制用户是否能使用 AI
 DEFAULT_CHAT_ENABLED = C("DEFAULT_CHAT_ENABLED", "false").lower() == "true"
-# AI 大状态：控制普通消息的自动回复策略
-AI_MODE_MANUAL = "manual"   # 非主动：普通消息不自动回
-AI_MODE_AUTO = "auto"       # 主动：普通消息自动回
-AI_MODE_STOPPED = "stopped" # 停止：普通消息完全忽略
-DEFAULT_AI_MODE = C("DEFAULT_AI_MODE", AI_MODE_MANUAL).lower()
-if DEFAULT_AI_MODE not in (AI_MODE_MANUAL, AI_MODE_AUTO, AI_MODE_STOPPED):
-    DEFAULT_AI_MODE = AI_MODE_MANUAL
-# /chat 裸命令后，等待下一条普通消息的有效期（秒）
-CHAT_ONCE_TTL = float(C("CHAT_ONCE_TTL", "300"))
 # 顶层会话扫描：只读左侧会话列表前 N 项，成本极低
 TOP_SESSION_SCAN = int(C("TOP_SESSION_SCAN", "5"))
 # 本地控制通道文件（JSONL），用于自己的命令及时送达
@@ -78,7 +109,7 @@ AI_QUEUE_MAXSIZE = int(C("AI_QUEUE_MAXSIZE", "50"))
 OCR_QUEUE_MAXSIZE = int(C("OCR_QUEUE_MAXSIZE", "20"))
 # OCR 图片提交并发上限
 OCR_SUBMIT_CONCURRENCY = int(C("OCR_SUBMIT_CONCURRENCY", "2"))
-# control.jsonl 认证 token（设为空字符串则跳过认证）
+# control.jsonl 认证 token；为空则禁用本地 control.jsonl 控制通道
 CONTROL_TOKEN = C("CONTROL_TOKEN", "")
 # 未开放会话不进入聊天窗口（非授权版核心优化）
 START_FROM_CONTROL_ONLY = C("START_FROM_CONTROL_ONLY", "true").lower() == "true"
@@ -89,7 +120,7 @@ WXTERM_POLL_SEC = float(C("WXTERM_POLL_SEC", "3.0"))
 # 指令防抖 TTL（秒），防止 wxauto 重复读到同一条指令
 CMD_DEDUPE_TTL = float(C("CMD_DEDUPE_TTL", "20"))
 # 普通文本防抖 TTL（秒），防止同一条消息被重复提交 AI
-TEXT_DEDUPE_TTL = float(C("TEXT_DEDUPE_TTL", "45"))
+TEXT_DEDUPE_TTL = float(C("TEXT_DEDUPE_TTL", "10"))
 WHITELIST = [x.strip() for x in C("WHITELIST", "").split(",") if x.strip()]
 BLACKLIST_FILE = Path(__file__).parent / "blacklist.txt"
 
@@ -101,16 +132,10 @@ ocr_ready = threading.Event()
 history: dict[str, list[dict]] = {}
 history_ts: dict[str, float] = {}
 seen: dict[str, float] = {}  # mid → 添加时间
-cooldown: dict[str, float] = {}
 session_ts: dict[str, str] = {}
 BLACKLIST: list[str] = []
-# 冷却赦免：自己发出的指令反馈不触发冷却
-cooldown_exempt: dict[str, dict] = {}  # key → {"expire": float}
-COOLDOWN_EXEMPT_TTL = float(C("COOLDOWN_EXEMPT_TTL", "300"))
 # 每个会话独立配置
 chat_cfg: dict[str, dict] = {}
-# 运行态：/chat 裸命令后的单次监听等待（不建议持久化，避免重启后误监听旧消息）
-chat_once_waiting: dict[str, dict] = {}
 # 顶层会话 fingerprint 快照（name → fp），用于检测左侧列表变化
 top_session_fp: dict[str, str] = {}
 # control.jsonl 已读字节偏移
@@ -125,6 +150,8 @@ wxterm_seen: set[str] = set()
 recent_cmd_seen: dict[str, float] = {}
 # 普通文本防抖表：sha1(chat_name|sender|norm_text) → 过期时间
 recent_text_seen: dict[str, float] = {}
+# 提示词收集模式：chat_name → {"lines": list[str], "append": bool}
+prompt_collecting: dict[str, dict] = {}
 
 # ==== 三个独立队列 ====
 ai_queue = queue.Queue(maxsize=AI_QUEUE_MAXSIZE)    # (fn, on_done) → AI Worker 消费
@@ -133,8 +160,6 @@ CHAT_CFG_FILE = Path(__file__).parent / "chat_cfg.json"
 send_queue = queue.Queue(maxsize=SEND_QUEUE_MAXSIZE)  # 有界队列
 _current_chat = None
 _last_msg_at = 0.0  # 最后收到新消息的时间（用于动态轮询）
-STARTUP_GRACE_SEC = float(C("STARTUP_GRACE_SEC", "10"))
-startup_grace_until = time.time() + STARTUP_GRACE_SEC  # 启动保护期，禁止冷却扫描
 # 懒加载会话初始化：首次进入某聊天窗口时标记历史消息为 seen
 primed_chats: set[str] = set()
 PRIME_HISTORY_LIMIT = int(C("PRIME_HISTORY_LIMIT", "20"))
@@ -180,9 +205,9 @@ def get_chat_cfg(chat_name: str) -> dict:
             chat_cfg[chat_name] = {
                 "enabled": DEFAULT_CHAT_ENABLED,
                 "show_thinking": DEFAULT_SHOW_THINKING,
-                "cooling_sec": DEFAULT_COOLING_SEC,
                 "online": False,
-                "chat_mode": DEFAULT_AI_MODE,
+                "n_len": DEFAULT_N_LEN,
+                "prompt": None,
             }
         return chat_cfg[chat_name]
 
@@ -194,9 +219,9 @@ def get_chat_cfg_snapshot(chat_name: str) -> dict:
             cfg = {
                 "enabled": DEFAULT_CHAT_ENABLED,
                 "show_thinking": DEFAULT_SHOW_THINKING,
-                "cooling_sec": DEFAULT_COOLING_SEC,
                 "online": False,
-                "chat_mode": DEFAULT_AI_MODE,
+                "n_len": DEFAULT_N_LEN,
+                "prompt": None,
             }
             chat_cfg[chat_name] = cfg
         return cfg.copy()
@@ -219,15 +244,16 @@ def cleanup_seen():
 
 def _msg_id(msg, chat_name: str) -> str:
     """
-    使用稳定文本指纹，不信任 wxauto 的 id/hash。
-    这些值在反复 GetAllMessage() 时可能不稳定，导致 seen 失效。
+    混合指纹：文本内容 + 微信原始 id/hash + 时间 + 发送者。
+    wxauto 的 id/hash 可能不稳定，仅作为辅助字段避免同一分钟重复文本被吞。
     """
     sender = getattr(msg, "sender", "")
     mtime = getattr(msg, "time", "") or getattr(msg, "create_time", "")
     mtype = getattr(msg, "type", "")
     content = str(getattr(msg, "content", ""))[:500]
+    raw_id = getattr(msg, "id", "") or getattr(msg, "hash", "") or ""
 
-    stable = f"{chat_name}|{sender}|{mtype}|{mtime}|{content}"
+    stable = f"{chat_name}|{sender}|{mtype}|{mtime}|{raw_id}|{content}"
     h = hashlib.sha1(stable.encode("utf-8", errors="ignore")).hexdigest()
     return f"fb|{h}"
 
@@ -330,96 +356,108 @@ def _is_runtime_msg(chat_name: str, msg) -> bool:
 def filter_runtime_msgs(chat_name: str, msgs):
     return [m for m in msgs if _is_runtime_msg(chat_name, m)]
 
-# ==== 多消息拆分 ====
+# ==== 多消息拆分（按换行）====
 SPLIT_RULE = f"""
 【消息拆分规则】
-当你的回复过短,优先使用分隔符,禁止使用换行
-当你的回复较长、包含多个独立段落、或者需要分步说明时，请在两条消息之间插入以下标记：
-
-{AI_SPLIT_TOKEN}
-
-该标记必须独占一行，前后不能有其他文字。注意:回复较长时作为独立段落的分割,整理格式优先使用换行,区分段落优先使用分隔符
-
-示例：
-第一条消息内容...
-{AI_SPLIT_TOKEN}
-第二条消息内容...
-
-规则：
-- 每条消息应是一段自然的回复
-- 简短回复需要拆分,长句子可以根据完整性拆分
+系统根据回复中的换行自动拆分消息发送。
+- 每个换行段落为一条独立消息
+- 换行数达到阈值则整条一次发出，不拆分
+- 过短段落（少于 {MIN_PART_LEN} 字）自动合并到相邻段落
 - 最多拆成 {MAX_AI_PARTS} 条，超出部分合并到末尾
-- 当用户询问时可以向用户解释或提及这个标记,但是不要主动提出,可以根据用户的要求来运用这个标志,一定要遵守前几条规则且不要超过最大条数限制
+
+【代码 / 保留格式】
+需要某段内容整条发送不被拆分时，用 $$$ 包裹：
+  开头说明$$$
+  代码内容
+  可以换行
+  $$$后续内容
+被 $$$ 包裹的内容将作为一整条消息发出，不会按换行拆分。
+这个机制适用于代码、表格、或任何需要保留换行的场景。
 """.strip()
 
-def split_ai_reply(text: str) -> list[str]:
-    if not text: return []
-    if AI_SPLIT_TOKEN not in text: return [text.strip()]
-    parts = [p.strip() for p in text.split(AI_SPLIT_TOKEN) if len(p.strip()) >= MIN_PART_LEN]
-    if len(parts) > MAX_AI_PARTS:
-        head = parts[:MAX_AI_PARTS - 1]
-        tail = "\n\n".join(parts[MAX_AI_PARTS - 1:])
-        parts = head + [tail]
+def _extract_quoted_blocks(text: str):
+    """提取 $$$ 包裹的块，返回 [(type, content)]，type='normal' 或 'preserve'"""
+    parts = []
+    remaining = text
+    while True:
+        idx = remaining.find('$$$')
+        if idx == -1:
+            if remaining.strip():
+                parts.append(('normal', remaining.strip()))
+            break
+        before = remaining[:idx].strip()
+        if before:
+            parts.append(('normal', before))
+        rest = remaining[idx + 3:]
+        end_idx = rest.find('$$$')
+        if end_idx == -1:
+            if rest.strip():
+                parts.append(('normal', rest.strip()))
+            break
+        inner = rest[:end_idx].strip()
+        if inner:
+            parts.append(('preserve', inner))
+        remaining = rest[end_idx + 3:]
     return parts
+
+def split_ai_reply(text: str, n_len: int = 15) -> list[str]:
+    """
+    按换行拆分，换行 >= n_len 则不拆分。
+    支持 $$$...$$$ 包裹的块，内部内容作为整条消息发送（不拆分）。
+    """
+    if not text: return []
+    text = text.strip()
+    if not text: return []
+
+    blocks = _extract_quoted_blocks(text)
+    result = []
+
+    for btype, content in blocks:
+        if btype == 'preserve':
+            # $$$ 内整条保留，不拆分
+            result.append(content)
+        else:
+            # 普通文本按换行拆分
+            if content.count('\n') >= n_len:
+                result.append(content)
+            else:
+                lines = [l.strip() for l in content.split('\n') if l.strip()]
+                lines = [l for l in lines if len(l) >= MIN_PART_LEN]
+                if not lines:
+                    result.append(content)
+                elif len(lines) > MAX_AI_PARTS:
+                    head = lines[:MAX_AI_PARTS - 1]
+                    tail = "\n".join(lines[MAX_AI_PARTS - 1:])
+                    result.extend(head)
+                    result.append(tail)
+                else:
+                    result.extend(lines)
+    return result
 
 def enqueue_reply(chat_name: str, text: str, split: bool = False):
     if not text: return
-    parts = split_ai_reply(text) if (split and ENABLE_AI_SPLIT) else [text.strip()]
+    if split and ENABLE_AI_SPLIT:
+        cfg = get_chat_cfg_snapshot(chat_name)
+        n_len = cfg.get("n_len", DEFAULT_N_LEN)
+        parts = split_ai_reply(text, n_len)
+    else:
+        parts = [text.strip()]
     for part in parts:
         if not part: continue
         try:
             send_queue.put_nowait((chat_name, part))
-            # 不在这里 add_cooldown_exempt
-            # 在 _flush_send() 里 wx.SendMsg() 成功后才登记
         except queue.Full:
             logger.warning(f"发送队列满，丢弃: {part[:80]}")
 
 def clean_split_token(text: str) -> str:
-    return text.replace(AI_SPLIT_TOKEN, "\n\n").strip() if text else ""
+    return text.strip() if text else ""
 
-# ==== 冷却赦免 ====
 def _norm_text(text: str) -> str:
     text = unicodedata.normalize("NFKC", text or "")
     text = text.replace("\r\n", "\n").replace("\r", "\n").strip()
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text
-
-def _exempt_key(chat_name: str, text: str) -> str:
-    norm = _norm_text(text)
-    h = hashlib.sha1(norm.encode("utf-8", errors="ignore")).hexdigest()
-    return f"{chat_name}|{h}"
-
-def add_cooldown_exempt(chat_name: str, text: str):
-    if not text:
-        return
-    key = _exempt_key(chat_name, text)
-    now = time.time()
-    with _st:
-        cooldown_exempt[key] = {
-            "expire": now + COOLDOWN_EXEMPT_TTL
-        }
-
-def is_cooldown_exempt(chat_name: str, text: str) -> bool:
-    if not text:
-        return False
-
-    key = _exempt_key(chat_name, text)
-    now = time.time()
-
-    with _st:
-        item = cooldown_exempt.get(key)
-
-        if item and item.get("expire", 0) > now:
-            # 关键：不要消耗，不要 count -= 1
-            # 同一条 wxauto 消息被重复读到也继续赦免
-            return True
-
-        for k, v in list(cooldown_exempt.items()):
-            if v.get("expire", 0) <= now:
-                cooldown_exempt.pop(k, None)
-
-    return False
 
 # ==== Worker: AI（只消费 ai_queue）====
 def ai_worker():
@@ -436,9 +474,9 @@ def ai_worker():
             except Exception as e: logger.error(f"AI callback: {e}")
         ai_queue.task_done()
 
-def _do_ask(msg: str, hist: list[dict] | None, show_thinking: bool, online: bool):
+def _do_ask(msg: str, hist: list[dict] | None, show_thinking: bool, online: bool, custom_prompt: str | None = None):
     if ai_client is None: return "❌ 未初始化", ""
-    system_content = SYSTEM_PROMPT
+    system_content = custom_prompt if custom_prompt else SYSTEM_PROMPT
     if ENABLE_AI_SPLIT:
         system_content += "\n\n" + SPLIT_RULE
     if online:
@@ -461,9 +499,10 @@ def submit_ai(msg: str, hist: list[dict] | None, chat_name: str, on_done):
     cfg = get_chat_cfg_snapshot(chat_name)
     show_thinking = cfg["show_thinking"]
     online = cfg.get("online", False)
+    custom_prompt = cfg.get("prompt")
 
     try:
-        ai_queue.put_nowait((lambda: _do_ask(msg, hist, show_thinking, online), on_done))
+        ai_queue.put_nowait((lambda: _do_ask(msg, hist, show_thinking, online, custom_prompt), on_done))
     except queue.Full:
         enqueue_reply(chat_name, "⚠️ AI 队列繁忙，请稍后再试")
 
@@ -702,7 +741,6 @@ def _process_one_session(wx, s, top_fp_changed: bool = False) -> bool:
     if not candidate_msgs:
         return False
 
-    _check_cooldown(name, candidate_msgs)
     for msg in candidate_msgs[-5:]:
         handle_message(msg, name)
 
@@ -755,7 +793,7 @@ def write_control(chat_name: str, text: str, sender: str = ""):
     """
     向 control.jsonl 写入一条控制命令。
     chat_name: 目标会话名
-    text: 指令文本（如 "/chat auto"、"你好"）
+    text: 指令文本（如 "/start"、"你好"）
     sender: 发送者（留空则视为自己）
     """
     import json
@@ -777,7 +815,20 @@ def _handle_control_input(chat_name: str, sender: str, text: str, out_chat_name:
     if not text:
         return
 
+    # 提示词收集模式：非指令消息直接收集
+    with _st:
+        pdata = prompt_collecting.get(chat_name)
+    if pdata is not None and not text.startswith("/"):
+        pdata["lines"].append(text)
+        logger.info(f"📝 [control] [{chat_name}] 收集提示词: {text[:60]}")
+        return
+
     if text.startswith("/"):
+        # 指令防抖：防止 wxauto id/hash 不稳定导致重复执行
+        if is_duplicate_command(chat_name, sender, text):
+            logger.info(f"♻️ [control] [{chat_name}] 重复指令已忽略: {sender}: {text[:60]}")
+            return
+
         _route_command(
             text=text,
             chat_name=chat_name,
@@ -797,6 +848,8 @@ def _poll_control_file():
     支持 CONTROL_TOKEN 认证；支持半行缓冲防止读断。
     """
     global _control_offset, _control_tail
+    if _control_offset == -1:  # control 已禁用
+        return
     if not CONTROL_FILE.exists():
         return
 
@@ -864,9 +917,8 @@ def _parse_wxterm_command(text: str):
     解析终端命令格式：
     @张三 /start
     @张三 /stop
-    @张三 /chat auto
-    @张三 /chat 你好
     返回 (target, cmd) 或 (None, None)
+    非命令文本直接作为普通消息发送给 AI。
     """
     text = (text or "").strip()
     if not text.startswith("@"):
@@ -881,10 +933,6 @@ def _parse_wxterm_command(text: str):
 
     if not target or not cmd:
         return None, None
-
-    # 非 / 开头的文本默认作为 /chat 单次提问
-    if not cmd.startswith("/"):
-        cmd = "/chat " + cmd
 
     return target, cmd
 
@@ -976,8 +1024,7 @@ def init_wxterm_snapshot(wx):
 def _poll_current_chat_compensation(wx):
     """
     第 3 层触发：只读当前打开会话末尾消息。
-    不扫所有会话，不遍历消息树。仅在确实需要捕获"当前窗口自己发 /chat
-    但左侧摘要未刷新"的场景时启用。
+    不扫所有会话，不遍历消息树。
 
     默认关闭，设置 COMPENSATE_CURRENT_CHAT=1 开启。
 
@@ -1006,50 +1053,6 @@ def _poll_current_chat_compensation(wx):
     # 不提前写 seen，交给 handle_message() 统一处理
     handle_message(msg, _current_chat)
 
-
-# ==== 冷却 ====
-def _check_cooldown(name: str, msgs):
-    # 启动保护期：刚启动时禁止冷却扫描，避免历史绿色消息被误判
-    if time.time() < startup_grace_until:
-        return
-
-    cfg = get_chat_cfg(name)
-    cooling_sec = cfg["cooling_sec"]
-    if cooling_sec <= 0:
-        return
-
-    if not msgs:
-        return
-
-    # 只看最后一条消息，而非扫描最近 N 条
-    # 扫描多条风险大：混着旧的机器人回复就可能误杀
-    m = msgs[-1]
-
-    if not isinstance(m, SelfMessage) or m.type != "text":
-        return
-
-    txt = m.content.strip()
-    if not txt:
-        return
-
-    if txt.startswith("/"):
-        return
-
-    mid = _msg_id(m, name)
-    if not mark_seen(mid):
-        return  # 已处理过就跳过
-
-    if is_cooldown_exempt(name, txt):
-        return
-
-    # 含 DS 回复标记 → 程序自动发送，赦免
-    if "--来自deepseek" in txt or "--来自ds" in txt.lower():
-        return
-
-    # 不在赦免表 → 视为手动回复
-    cooldown[name] = time.time() + cooling_sec
-    logger.info(f"⏸ {name} 手动接管，DS 进入 {cooling_sec} 秒冷却")
-    enqueue_reply(name, f"⚠️ 检测到手动回复，已手动接管，DS 进入 {cooling_sec} 秒冷却。使用 /chat 恢复。")
 
 # ==== 消息分发 ====
 def handle_message(msg, chat_name: str):
@@ -1081,16 +1084,6 @@ def _handle_image(msg, chat_name, sender, is_self):
 
     if not cfg.get("enabled", DEFAULT_CHAT_ENABLED):
         logger.info(f"🚫 [{chat_name}] 未开放，忽略图片: {sender}")
-        return
-
-    once = consume_chat_once(chat_name)
-    chat_mode = cfg.get("chat_mode", AI_MODE_MANUAL)
-
-    if not once and chat_mode != AI_MODE_AUTO:
-        logger.info(f"🤫 [{chat_name}] 非自动模式忽略图片: {sender}")
-        return
-
-    if chat_mode == AI_MODE_AUTO and chat_name in cooldown and time.time() < cooldown[chat_name]:
         return
 
     if not ocr_ready.is_set():
@@ -1143,9 +1136,6 @@ def is_duplicate_command(chat_name: str, sender: str, text: str) -> bool:
     norm = _norm_text(text)
     low = norm.lower()
 
-    # /chat 裸命令更容易造成重复监听提示，给更长防抖
-    ttl = min(CHAT_ONCE_TTL, 60) if low in ("/chat", "/chat ") else CMD_DEDUPE_TTL
-
     key = f"{chat_name}|{sender}|{low}"
     now = time.time()
 
@@ -1154,10 +1144,10 @@ def is_duplicate_command(chat_name: str, sender: str, text: str) -> bool:
 
         if exp > now:
             # 重复读到时顺手续期，避免同一条旧命令过几十秒又触发
-            recent_cmd_seen[key] = now + ttl
+            recent_cmd_seen[key] = now + CMD_DEDUPE_TTL
             return True
 
-        recent_cmd_seen[key] = now + ttl
+        recent_cmd_seen[key] = now + CMD_DEDUPE_TTL
         return False
 
 
@@ -1182,23 +1172,6 @@ def is_duplicate_user_text(chat_name: str, sender: str, text: str) -> bool:
 
         recent_text_seen[key] = now + TEXT_DEDUPE_TTL
         return False
-
-
-def consume_chat_once(chat_name: str) -> dict | None:
-    """消费 /chat 裸命令的单次监听标记，返回等待记录或 None"""
-    now = time.time()
-    with _st:
-        once = chat_once_waiting.get(chat_name)
-
-        if once and once.get("expire", 0) <= now:
-            chat_once_waiting.pop(chat_name, None)
-            return None
-
-        if once:
-            chat_once_waiting.pop(chat_name, None)
-            return once
-
-    return None
 
 
 # ==== 文本 ====
@@ -1237,6 +1210,16 @@ def _handle_text(msg, chat_name, sender, is_self):
     if not is_self and not is_allowed(chat_name, sender):
         return
 
+    # 提示词收集模式：非指令消息直接收集
+    with _st:
+        pdata = prompt_collecting.get(chat_name)
+    if pdata is not None:
+        if not text.startswith("/"):
+            pdata["lines"].append(text)
+            logger.info(f"📝 [{chat_name}] 收集提示词: {text[:60]}")
+            return
+        # 指令仍按正常流程处理（/p_end 在其中）
+
     # 指令优先处理
     if text.startswith("/"):
         if is_duplicate_command(chat_name, sender, text):
@@ -1257,38 +1240,12 @@ def _handle_text(msg, chat_name, sender, is_self):
         logger.info(f"🚫 [{chat_name}] 未开放，忽略普通消息: {sender}: {text[:60]}")
         return
 
-    chat_mode = cfg.get("chat_mode", AI_MODE_MANUAL)
-
-    # /chat 裸命令后的"监听下一条消息"（优先级高于 stopped）
-    once = consume_chat_once(chat_name)
-
-    if once:
-        if is_duplicate_user_text(chat_name, sender, text):
-            logger.info(f"♻️ [{chat_name}] 重复普通消息已忽略: {sender}: {text[:60]}")
-            return
-
-        logger.info(f"🎯 [{chat_name}] /chat 单次监听命中: {sender}: {text[:60]}")
-        _submit_text_to_ai(text, chat_name, sender)
+    # 已开放：自动回复
+    if is_duplicate_user_text(chat_name, sender, text):
+        logger.info(f"♻️ [{chat_name}] 重复普通消息已忽略: {sender}: {text[:60]}")
         return
 
-    # 停止模式：没有单次监听时才完全忽略普通消息
-    if chat_mode == AI_MODE_STOPPED:
-        return
-
-    # 自动模式：普通消息自动回复
-    if chat_mode == AI_MODE_AUTO:
-        if chat_name in cooldown and time.time() < cooldown[chat_name]:
-            return
-
-        if is_duplicate_user_text(chat_name, sender, text):
-            logger.info(f"♻️ [{chat_name}] 重复普通消息已忽略: {sender}: {text[:60]}")
-            return
-
-        _submit_text_to_ai(text, chat_name, sender)
-        return
-
-    # 非主动模式：普通消息不回
-    logger.info(f"🤫 [{chat_name}] 非主动模式忽略普通消息: {sender}: {text[:60]}")
+    _submit_text_to_ai(text, chat_name, sender)
 
 
 # ==== 指令路由 ====
@@ -1318,106 +1275,34 @@ def _route_command(text: str, chat_name: str, is_self: bool, sender: str, out_ch
     if cmd in ("/帮助", "/help"):
         out(
             "🤖 可用指令：\n"
-            "/start — 管理员开放当前会话\n"
-            "/stop — 管理员关闭当前会话，删除开放标记\n"
-            "/chat 文本 — 单次向 AI 提问（需已开放）\n"
-            "/chat — 监听下一条普通消息（需已开放）\n"
-            "/chat auto — 切换自动回复模式\n"
-            "/chat off — 切换非主动模式\n"
-            "/chat cancel — 取消单次监听\n"
+            "/start — 管理员开放会话（仅文件传输助手使用，格式：@目标 /start）\n"
+            "/stop — 管理员关闭会话（仅文件传输助手使用，格式：@目标 /stop）\n"
             "/fast · /r — 切换模型模式\n"
             "/online · /offline — 联网搜索\n"
             "/status — 查看状态\n"
             "/history — 上下文条数\n"
             "/clear_seen — 清去重缓存\n"
-            "/set_cooling N — 冷却时长\n"
+            "/n_len N — 换行拆分阈值\n"
+            "/prompt — 进入提示词设置模式\n"
+            "/prompt -a — 进入提示词追加模式\n"
+            "/prompt -show — 查看当前个人提示词\n"
+            "/p_end — 结束提示词收集\n"
             "/black 名称 — 拉黑\n"
             "/del_black — 取消拉黑\n"
             "/重置 — 清上下文"
         ); return
-
-    if cmd in ("/chat", "/Chat"):
-        args = text.split(maxsplit=1)
-
-        # 未开放会话，非管理员不能使用 /chat
-        chat_enabled = bool(cfg.get("enabled", DEFAULT_CHAT_ENABLED))
-        if not chat_enabled and not privileged:
-            out("⛔ 当前会话未开放，请联系管理员使用 /start 开启")
-            return
-
-        # stopped 状态下，非管理员不能用 /chat 唤醒
-        if cfg.get("chat_mode") == AI_MODE_STOPPED and not privileged:
-            out("⚠️ 当前会话已停止，仅管理员可使用 /chat")
-            return
-
-        # /chat
-        # 裸命令：监听下一条普通消息，单次有效（幂等：已在监听中则忽略）
-        if len(args) == 1:
-            now_chat = time.time()
-
-            with _st:
-                old = chat_once_waiting.get(chat_name)
-
-                if old and old.get("expire", 0) > now_chat:
-                    logger.info(f"♻️ [{chat_name}] 已在单次监听中，忽略重复 /chat")
-                    return
-
-                chat_once_waiting[chat_name] = {
-                    "expire": now_chat + CHAT_ONCE_TTL,
-                    "by": sender,
-                }
-
-            cooldown.pop(chat_name, None)
-            out(f"🎯 已进入单次监听：下一条普通消息将由 AI 回复，有效期 {int(CHAT_ONCE_TTL)} 秒")
-            return
-
-        payload = args[1].strip()
-        low = payload.lower()
-
-        # /chat auto
-        # 切换自动回复模式
-        if low in ("auto", "on"):
-            cfg["chat_mode"] = AI_MODE_AUTO
-            cooldown.pop(chat_name, None)
-            _save_chat_cfg()
-            out("✅ 当前会话已切换为自动回复模式")
-            return
-
-        # /chat off
-        # 切换非主动模式，不删除授权
-        if low in ("off", "manual", "passive"):
-            cfg["chat_mode"] = AI_MODE_MANUAL
-            cooldown.pop(chat_name, None)
-            _save_chat_cfg()
-            out("🤫 当前会话已切换为非主动模式，仍保持开放标记")
-            return
-
-        # /chat cancel
-        # 取消裸 /chat 的下一次监听
-        if low in ("cancel", "取消"):
-            with _st:
-                chat_once_waiting.pop(chat_name, None)
-            out("✅ 已取消单次监听")
-            return
-
-        # /chat 文本
-        # 单次立即调用，不改变配置
-        cooldown.pop(chat_name, None)
-        _submit_text_to_ai(payload, chat_name, sender)
-        return
 
     if cmd in ("/start", "/Start"):
         if not privileged:
             out("⚠️ 该指令仅管理员可用")
             return
 
+        # /start 只能在微信终端（文件传输助手）中使用
+        if out_chat_name is None:
+            out("⛔ /start 仅限在文件传输助手中使用，格式：@目标 /start")
+            return
+
         cfg["enabled"] = True
-        cfg["chat_mode"] = AI_MODE_AUTO
-        cooldown.pop(chat_name, None)
-
-        with _st:
-            chat_once_waiting.pop(chat_name, None)
-
         _save_chat_cfg()
         out("✅ 当前会话已开放：后续普通消息会自动回复")
         return
@@ -1427,13 +1312,12 @@ def _route_command(text: str, chat_name: str, is_self: bool, sender: str, out_ch
             out("⚠️ 该指令仅管理员可用")
             return
 
+        # /stop 只能在微信终端（文件传输助手）中使用
+        if out_chat_name is None:
+            out("⛔ /stop 仅限在文件传输助手中使用，格式：@目标 /stop")
+            return
+
         cfg["enabled"] = False
-        cfg["chat_mode"] = AI_MODE_MANUAL
-        cooldown.pop(chat_name, None)
-
-        with _st:
-            chat_once_waiting.pop(chat_name, None)
-
         _save_chat_cfg()
         out("⛔ 当前会话已关闭：已删除开放标记，普通用户不能再聊天")
         return
@@ -1442,37 +1326,19 @@ def _route_command(text: str, chat_name: str, is_self: bool, sender: str, out_ch
     if cmd == "/status":
         enabled = "✅ 已开放" if cfg.get("enabled", DEFAULT_CHAT_ENABLED) else "⛔ 未开放"
         mode = "🧠 推理 (v4-pro)" if cfg["show_thinking"] else "💬 快速 (v4-flash)"
-        cooling = f"⏱ {cfg['cooling_sec']}秒" if cfg["cooling_sec"] else "⏱ 关闭"
         online = "🌐 开" if cfg.get("online") else "📴 关"
 
-        chat_mode = cfg.get("chat_mode", AI_MODE_MANUAL)
-        mode_map = {
-            AI_MODE_MANUAL: "非主动",
-            AI_MODE_AUTO: "自动监听",
-            AI_MODE_STOPPED: "停止",
-        }
-        ai_state = mode_map.get(chat_mode, "未知")
-
-        with _st:
-            once = chat_once_waiting.get(chat_name)
-            once_status = "是" if once and once.get("expire", 0) > time.time() else "否"
-
         bl = "是" if chat_name in BLACKLIST or sender in BLACKLIST else "否"
-        cd = (
-            f"冷却中（剩{int(cooldown[chat_name]-time.time())}秒）"
-            if chat_name in cooldown and time.time() < cooldown[chat_name]
-            else "正常"
-        )
+        n_len = cfg.get("n_len", DEFAULT_N_LEN)
+        prompt_status = "✅ 自定义" if cfg.get("prompt") else "📄 默认(prompt.txt)"
 
         out(
             f"📊 状态：\n"
             f"开放状态: {enabled}\n"
-            f"AI状态: {ai_state}\n"
-            f"单次监听: {once_status}\n"
             f"模式: {mode}\n"
             f"联网: {online}\n"
-            f"自动冷却: {cooling}\n"
-            f"当前会话冷却: {cd}\n"
+            f"换行拆分: {n_len} 行\n"
+            f"个人提示词: {prompt_status}\n"
             f"被拉黑: {bl}"
         ); return
 
@@ -1546,18 +1412,77 @@ def _route_command(text: str, chat_name: str, is_self: bool, sender: str, out_ch
         _save_chat_cfg()
         out("☕ 休闲模式：快速回复 + 无联网"); return
 
-    # ---- 冷却 ----
-    if cmd == "/set_cooling":
+    # ---- 个人提示词 ----
+    if cmd == "/prompt":
+        if not privileged:
+            out("⚠️ 该指令仅管理员可用")
+            return
+        args = text.split(maxsplit=1)
+        low_args = args[1].strip().lower() if len(args) > 1 else ""
+
+        # /prompt -show: 显示当前个人提示词
+        if low_args in ("-show", "-s", "show"):
+            cur = cfg.get("prompt")
+            if cur:
+                out(f"📝 当前会话个人提示词：\n{cur}")
+            else:
+                out("📝 当前会话未设置个人提示词（使用 prompt.txt 默认）")
+            return
+
+        # /prompt -a: 追加模式（无现有提示词时当做普通覆盖）
+        append_mode = low_args in ("-a", "-append", "append")
+        existing = cfg.get("prompt")
+        # 无现有提示词时 -a 退化为覆盖
+        if append_mode and not existing:
+            append_mode = False
+
+        with _st:
+            prompt_collecting[chat_name] = {"lines": [], "append": append_mode}
+        if append_mode:
+            out("🎤 进入提示词追加模式，发送的消息将追加到现有提示词，发送 /p_end 结束")
+        else:
+            out("🎤 进入提示词设置模式，发送的消息将作为新提示词，发送 /p_end 结束")
+        return
+
+    if cmd == "/p_end":
+        with _st:
+            pdata = prompt_collecting.pop(chat_name, None)
+        if pdata is None:
+            out("⚠️ 当前未在提示词收集模式")
+            return
+
+        lines = pdata.get("lines", [])
+        append_mode = pdata.get("append", False)
+
+        if not lines:
+            out("⚠️ 未收集到任何内容，提示词未更改")
+            return
+
+        new_text = "。".join(lines)
+        if append_mode:
+            old_prompt = cfg.get("prompt") or ""
+            cfg["prompt"] = old_prompt + "\n" + new_text
+            _save_chat_cfg()
+            out(f"✅ 已追加到当前会话提示词（共 {len(cfg['prompt'])} 字）")
+        else:
+            cfg["prompt"] = new_text
+            _save_chat_cfg()
+            out(f"✅ 当前会话提示词已设置（共 {len(new_text)} 字）")
+        return
+
+    # ---- 换行拆分阈值 ----
+    if cmd == "/n_len":
         if not privileged:
             out("⚠️ 该指令仅管理员可用")
             return
         args = text.split()
         try:
-            v = int(args[1]); cfg["cooling_sec"] = max(0, v)
+            v = int(args[1])
+            cfg["n_len"] = max(1, min(v, 200))
             _save_chat_cfg()
-            out(f"⏱ 当前会话冷却设为 {cfg['cooling_sec']} 秒" if cfg["cooling_sec"] else "⏱ 当前会话自动冷却已关闭")
+            out(f"📏 当前会话换行拆分阈值已设为 {cfg['n_len']} 行")
         except (IndexError, ValueError):
-            out(f"⏱ 当前会话冷却: {cfg['cooling_sec']} 秒\n用法: /set_cooling N (0=关闭)")
+            out(f"📏 当前换行拆分阈值: {cfg.get('n_len', DEFAULT_N_LEN)} 行\n用法: /n_len N (1~200)")
         return
 
     # ---- 黑名单 ----
@@ -1599,23 +1524,39 @@ def _load_chat_cfg():
                 chat_cfg[name] = {
                     "enabled": DEFAULT_CHAT_ENABLED,
                     "show_thinking": DEFAULT_SHOW_THINKING,
-                    "cooling_sec": DEFAULT_COOLING_SEC,
                     "online": False,
-                    "chat_mode": DEFAULT_AI_MODE,
+                    "n_len": DEFAULT_N_LEN,
                 }
                 continue
             cfg.setdefault("enabled", DEFAULT_CHAT_ENABLED)
             cfg.setdefault("show_thinking", DEFAULT_SHOW_THINKING)
-            cfg.setdefault("cooling_sec", DEFAULT_COOLING_SEC)
             cfg.setdefault("online", False)
-            cfg.setdefault("chat_mode", DEFAULT_AI_MODE)
+            cfg.setdefault("n_len", DEFAULT_N_LEN)
+            cfg.setdefault("prompt", None)
             cfg["enabled"] = bool(cfg["enabled"])
             cfg["show_thinking"] = bool(cfg["show_thinking"])
             cfg["online"] = bool(cfg["online"])
-            try: cfg["cooling_sec"] = max(0, int(cfg["cooling_sec"]))
-            except Exception: cfg["cooling_sec"] = DEFAULT_COOLING_SEC
-            if cfg["chat_mode"] not in (AI_MODE_MANUAL, AI_MODE_AUTO, AI_MODE_STOPPED):
-                cfg["chat_mode"] = DEFAULT_AI_MODE
+            try: cfg["n_len"] = max(1, int(cfg["n_len"]))
+            except Exception: cfg["n_len"] = DEFAULT_N_LEN
+            if cfg.get("prompt") is not None and not isinstance(cfg["prompt"], str):
+                cfg["prompt"] = None
+
+def update_chat_cfg(chat_name: str, **kwargs):
+    """线程安全地更新会话配置字段"""
+    with _st:
+        cfg = chat_cfg.get(chat_name)
+        if cfg is None:
+            cfg = {
+                "enabled": DEFAULT_CHAT_ENABLED,
+                "show_thinking": DEFAULT_SHOW_THINKING,
+                "online": False,
+                "n_len": DEFAULT_N_LEN,
+                "prompt": None,
+            }
+            chat_cfg[chat_name] = cfg
+        for k, v in kwargs.items():
+            cfg[k] = v
+    _save_chat_cfg()
 
 def _save_chat_cfg():
     import json
@@ -1630,9 +1571,25 @@ def _flush_send(wx):
     """主线程：每次最多发 MAX_SEND_PER_FLUSH 条，避免阻塞轮询"""
     global _current_chat
     sent = 0
+    # 发送重试计数器：key=(target, msg) → retry_count
+    # 使用全局 dict 避免每次重建
+    if not hasattr(_flush_send, "retry_map"):
+        _flush_send.retry_map = {}
+    retry_map = _flush_send.retry_map
+
+    MAX_RETRIES = 3  # 每条消息最多重试 3 轮
     try:
         while sent < MAX_SEND_PER_FLUSH:
             target, msg = send_queue.get_nowait()
+            msg_key = (target, msg)
+
+            # 检查重试次数
+            retry_count = retry_map.get(msg_key, 0)
+            if retry_count >= MAX_RETRIES:
+                logger.error(f"发送到 {target} 已重试 {MAX_RETRIES} 次，丢弃: {msg[:80]}")
+                retry_map.pop(msg_key, None)
+                continue  # 跳过，继续下一条
+
             try:
                 if _current_chat != target:
                     wx.ChatWith(target)
@@ -1646,9 +1603,6 @@ def _flush_send(wx):
                         for i in range(0, len(msg), 2000):
                             chunk = msg[i:i + 2000]
                             wx.SendMsg(chunk)
-
-                            # 关键：真正发送成功后登记为程序消息
-                            add_cooldown_exempt(target, chunk)
 
                             if i + 2000 < len(msg): time.sleep(0.05)
                         send_ok = True
@@ -1665,19 +1619,35 @@ def _flush_send(wx):
                             _current_chat = None
 
                 if not send_ok:
-                    logger.error(f"发送到 {target} 最终失败: {last_err}")
-                    # 放回队列，下次再试
+                    retry_map[msg_key] = retry_count + 1
+                    logger.error(f"发送到 {target} 失败 (累计重试{retry_count+1}/{MAX_RETRIES}): {last_err}")
+                    # 放回队列末尾，等下一轮重试
                     try:
                         send_queue.put_nowait((target, msg))
                     except queue.Full:
                         logger.warning(f"发送队列满，无法放回: {msg[:80]}")
+                        retry_map.pop(msg_key, None)
                     _current_chat = None
                     break  # 暂停本批发送，等下一轮
+                else:
+                    # 发送成功，清除重试记录
+                    retry_map.pop(msg_key, None)
 
                 sent += 1
                 time.sleep(random.uniform(SEND_PART_DELAY_MIN, SEND_PART_DELAY_MAX))
             except Exception as e:
-                logger.error(f"发送到 {target} 失败: {e}")
+                # 取出的消息在 ChatWith / 其他环节异常退出，必须放回或丢弃
+                logger.error(f"发送到 {target} 异常失败: {e}")
+                retry_map[msg_key] = retry_count + 1
+                if retry_count + 1 >= MAX_RETRIES:
+                    logger.error(f"发送到 {target} 已重试 {MAX_RETRIES} 次，丢弃: {msg[:80]}")
+                    retry_map.pop(msg_key, None)
+                else:
+                    try:
+                        send_queue.put_nowait((target, msg))
+                    except queue.Full:
+                        logger.warning(f"发送队列满，无法放回: {msg[:80]}")
+                        retry_map.pop(msg_key, None)
                 _current_chat = None
     except queue.Empty:
         pass
@@ -1693,12 +1663,8 @@ def _maybe_cleanup():
         stale = [k for k, t in history_ts.items() if now - t > 1800]
         for k in stale: history.pop(k, None); history_ts.pop(k, None)
     cleanup_seen()
-    # 清理过期的冷却赦免项
     now2 = time.time()
     with _st:
-        for k, v in list(cooldown_exempt.items()):
-            if v.get("expire", 0) <= now2:
-                cooldown_exempt.pop(k, None)
         # 清理过期的指令防抖
         for k, exp in list(recent_cmd_seen.items()):
             if exp <= now2:
@@ -1711,7 +1677,7 @@ def _maybe_cleanup():
 
 # ==== 主入口 ====
 def main():
-    global ai_client
+    global ai_client, _control_offset, _last_msg_at, BOT_START_TS
 
     print("🔧 初始化 DeepSeek...")
     try: ai_client = OpenAI(api_key=DEEPSEEK_KEY, base_url=DEEPSEEK_BASE); print("✅")
@@ -1734,24 +1700,22 @@ def main():
     init_top_session_snapshot(wx)
 
     # 初始化 control.jsonl 读取偏移（跳过已有历史，只处理启动后新增行）
-    global _control_offset
     if CONTROL_FILE.exists():
         _control_offset = CONTROL_FILE.stat().st_size
     else:
         _control_offset = 0
 
-    # CONTROL_TOKEN 空值警告
+    # CONTROL_TOKEN 安全检查
     if not CONTROL_TOKEN:
-        logger.warning("⚠️ CONTROL_TOKEN 为空，本地控制通道未启用认证")
+        logger.warning("⚠️ CONTROL_TOKEN 未设置，本地控制通道已禁用")
+        print("⚠️ CONTROL_TOKEN 未设置，本地控制通道已禁用（请配置 .env 中的 CONTROL_TOKEN）")
+        _control_offset = -1  # 标记禁用，不再轮询 control.jsonl
 
     # 初始化微信终端已读缓存，避免启动后执行历史命令
     init_wxterm_snapshot(wx)
 
-    global _last_msg_at, startup_grace_until, BOT_START_TS
-
     BOT_START_TS = time.time()
     _last_msg_at = BOT_START_TS
-    startup_grace_until = BOT_START_TS + STARTUP_GRACE_SEC
 
     logger.info(f"⏱ 机器人启动时间: {datetime.fromtimestamp(BOT_START_TS).strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("✅ 启动完成")

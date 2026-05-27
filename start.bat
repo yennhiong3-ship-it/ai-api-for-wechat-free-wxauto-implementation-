@@ -1,35 +1,35 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-title WeChat Bot
+title DeepSeek V4 微信机器人
 
 echo.
-echo ==========================================
-echo   WeChat Bot - Launcher
-echo ==========================================
+echo ╔══════════════════════════════════════════╗
+echo ║   🤖 DeepSeek V4 + 微信 智能机器人      ║
+echo ║   Python 3.12  ^|  wxauto4  ^|  EasyOCR   ║
+echo ╚══════════════════════════════════════════╝
 echo.
 
-:: Check virtual environment
+:: 检查虚拟环境
 if not exist ".venv\Scripts\python.exe" (
-    echo [ERROR] Virtual environment not found.
-    echo Run install.bat first, or manually:
-    echo   python -m venv .venv
-    echo   .venv\Scripts\python -m pip install -r requirements.txt
+    echo [错误] 虚拟环境未找到
+    echo 请先运行: python -m venv .venv
+    echo 然后运行: .venv\Scripts\python -m pip install -r requirements.txt
     pause
     exit /b 1
 )
 
-:: Check .env config
+:: 检查 .env
 if not exist ".env" (
-    echo [WARN] .env file not found. Please create .env with your API key.
+    echo [警告] 未找到 .env，请配置 DEEPSEEK_API_KEY
 )
 
-:: Launch
-echo [INFO] Starting main.py ...
-echo ------------------------------------------
+:: 启动
+echo [启动] 正在运行 main.py ...
+echo ───────────────────────────────────────────
 .venv\Scripts\python.exe main.py
-echo ------------------------------------------
+echo ───────────────────────────────────────────
 echo.
-echo [INFO] Process exited (code: %ERRORLEVEL%)
+echo [结束] 程序已退出 (错误码: %ERRORLEVEL%)
 echo.
 pause
